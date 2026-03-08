@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="refresh" content="0; url=login.html">
+  <title>UCC Portal</title>
+</head>
+<body>
+  <script>
+    const s = localStorage.getItem('ucc_session');
+    if (s) {
+      try {
+        const u = JSON.parse(s);
+        const m = { student:'student-dashboard.html', staff:'staff-dashboard.html', admin:'admin-dashboard.html' };
+        window.location.href = m[u.role] || 'login.html';
+      } catch { window.location.href = 'login.html'; }
+    } else {
+      window.location.href = 'login.html';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Request Detail — UCC Portal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-col">
+    <header class="topbar" id="topbar"></header>
+    <div class="page-body">
+
+      <div class="page-header" id="page-hdr">
+        <div><h1>Request Detail</h1><p id="ref-sub"></p></div>
+        <button class="btn btn-secondary" onclick="history.back()">← Back</button>
+      </div>
+
+      <div id="content"></div>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+const user = SESSION.get();
+if (!user) { window.location.href='login.html'; }
+
+const params = new URLSearchParams(location.search);
+const reqId  = parseInt(params.get('id'));
+const req    = DB.request(reqId);
+
+// Determine sidebar role
+const role = user.role;
+const sidebarPage = role==='admin' ? 'admin-requests.html' : role==='staff' ? 'staff-all-requests.html' : 'my-requests.html';
+renderSidebar(role, sidebarPage);
+renderTopbar('Request Detail');
+
+if (!req) {
+  document.getElementById('content').innerHTML = `<div class="alert alert-danger">Request not found.</div>`;
+} else {
+  document.getElementById('ref-sub').textContent = req.reference_no;
+
+  const dt       = DB.docType(req.doc_type_id);
+  const student  = DB.user(req.student_id);
+  const processor = req.processed_by ? DB.user(req.processed_by) : null;
+  const logs     = DB.logsForRequest(req.request_id);
+  const fee      = dt ? fmtMoney(dt.fee * req.quantity) : '—';
+
+  // Build timeline HTML
+  const tlHtml = logs.length ? logs.map(log => {
+    const changer = DB.user(log.changed_by);
+    const dotClass = ['completed','rejected','cancelled'].includes(log.new_status) ? log.new_status : '';
+    return `<li class="tl-item">
+      <div class="tl-dot ${dotClass}"></div>
+      <div class="tl-body">
+        <div class="tl-label">
+          ${log.old_status ? `${pillHtml(log.old_status)} → ` : ''}${pillHtml(log.new_status)}
+        </div>
+        ${log.note ? `<div class="tl-note">${log.note}</div>` : ''}
+        <div class="tl-meta">By ${changer?.full_name||'System'} · ${fmtDateTime(log.changed_at)}</div>
+      </div>
+    </li>`;
+  }).join('') : '<li style="font-size:13px;color:var(--text-muted);">No log entries yet.</li>';
+
+  document.getElementById('content').innerHTML = `
+    <div class="two-col">
+      <!-- Left -->
+      <div>
+        <div class="card section">
+          <div class="card-header">
+            <h2>Request Information</h2>
+            ${pillHtml(req.status)}
+          </div>
+          <div class="card-body">
+            <div class="detail-grid">
+              <div class="detail-item"><div class="dl">Reference No.</div><div class="dv td-ref">${req.reference_no}</div></div>
+              <div class="detail-item"><div class="dl">Document Type</div><div class="dv">${dt?.type_name||'—'}</div></div>
+              <div class="detail-item"><div class="dl">Quantity</div><div class="dv">${req.quantity}</div></div>
+              <div class="detail-item"><div class="dl">Total Fee</div><div class="dv fw-600">${fee}</div></div>
+              <div class="detail-item"><div class="dl">Purpose</div><div class="dv">${req.purpose}</div></div>
+              <div class="detail-item"><div class="dl">Urgency</div><div class="dv">${pillHtml(req.urgency)}</div></div>
+              <div class="detail-item"><div class="dl">Date Submitted</div><div class="dv">${fmtDateTime(req.date_submitted)}</div></div>
+              <div class="detail-item"><div class="dl">Preferred Pickup</div><div class="dv">${fmtDate(req.preferred_pickup)}</div></div>
+              ${req.remarks ? `<div class="detail-item" style="grid-column:1/-1;"><div class="dl">Remarks</div><div class="dv">${req.remarks}</div></div>` : ''}
+              ${processor ? `<div class="detail-item"><div class="dl">Processed By</div><div class="dv">${processor.full_name}</div></div>` : ''}
+              ${req.date_completed ? `<div class="detail-item"><div class="dl">Date Completed</div><div class="dv">${fmtDateTime(req.date_completed)}</div></div>` : ''}
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h2>Status Timeline</h2></div>
+          <div class="card-body">
+            <ul class="timeline">${tlHtml}</ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right -->
+      <div>
+        <div class="card">
+          <div class="card-header"><h2>Student Info</h2></div>
+          <div class="card-body" style="display:grid;gap:16px;">
+            <div class="detail-item"><div class="dl">Name</div><div class="dv fw-600">${student?.full_name||'—'}</div></div>
+            <div class="detail-item"><div class="dl">Student ID</div><div class="dv">${student?.student_id||'—'}</div></div>
+            <div class="detail-item"><div class="dl">Email</div><div class="dv">${student?.email||'—'}</div></div>
+            <div class="detail-item"><div class="dl">Course</div><div class="dv">${student?.course||'—'}</div></div>
+            <div class="detail-item"><div class="dl">Year Level</div><div class="dv">${student?.year_level ? 'Year '+student.year_level : '—'}</div></div>
+            <div class="detail-item"><div class="dl">Contact</div><div class="dv">${student?.contact_no||'—'}</div></div>
+          </div>
+        </div>
+
+        ${dt ? `
+        <div class="card" style="margin-top:18px;">
+          <div class="card-header"><h2>Document Info</h2></div>
+          <div class="card-body" style="display:grid;gap:14px;">
+            <div class="detail-item"><div class="dl">Type</div><div class="dv fw-600">${dt.type_name}</div></div>
+            <div class="detail-item"><div class="dl">Fee per copy</div><div class="dv">${fmtMoney(dt.fee)}</div></div>
+            <div class="detail-item"><div class="dl">Processing Time</div><div class="dv">${dt.processing_days} day(s)</div></div>
+            <div class="detail-item"><div class="dl">Description</div><div class="dv text-sub">${dt.description}</div></div>
+          </div>
+        </div>` : ''}
+      </div>
+    </div>`;
+}
+</script>
+</body>
+</html>

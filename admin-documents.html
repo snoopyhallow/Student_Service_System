@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document Types — UCC Portal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-col">
+    <header class="topbar" id="topbar"></header>
+    <div class="page-body">
+
+      <div class="page-header">
+        <div><h1>Document Types</h1><p>Manage available certificate types and their settings.</p></div>
+        <button class="btn btn-primary" onclick="openModal('add-modal')">➕ Add Document Type</button>
+      </div>
+
+      <div id="flash" class="flash hidden"></div>
+
+      <div class="doc-cards" id="doc-cards"></div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Add Modal -->
+<div class="modal-backdrop" id="add-modal">
+  <div class="modal">
+    <div class="modal-header"><h2>Add Document Type</h2><button class="modal-close" data-close="add-modal">×</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>Type Name <span class="required">*</span></label><input type="text" id="a-name" class="form-control"></div>
+      <div class="form-group"><label>Description</label><textarea id="a-desc" class="form-control" rows="3"></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label>Processing Days <span class="required">*</span></label><input type="number" id="a-days" class="form-control" value="3" min="1"></div>
+        <div class="form-group"><label>Fee (₱) <span class="required">*</span></label><input type="number" id="a-fee" class="form-control" step="0.01" value="0" min="0"></div>
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;">
+          <input type="checkbox" id="a-avail" checked> Available for requests
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" data-close="add-modal">Cancel</button>
+      <button class="btn btn-primary" onclick="addDocType()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-backdrop" id="edit-modal">
+  <div class="modal">
+    <div class="modal-header"><h2>Edit Document Type</h2><button class="modal-close" data-close="edit-modal">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="e-id">
+      <div class="form-group"><label>Type Name <span class="required">*</span></label><input type="text" id="e-name" class="form-control"></div>
+      <div class="form-group"><label>Description</label><textarea id="e-desc" class="form-control" rows="3"></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label>Processing Days <span class="required">*</span></label><input type="number" id="e-days" class="form-control" min="1"></div>
+        <div class="form-group"><label>Fee (₱) <span class="required">*</span></label><input type="number" id="e-fee" class="form-control" step="0.01" min="0"></div>
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;">
+          <input type="checkbox" id="e-avail"> Available for requests
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" data-close="edit-modal">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+const user = requireLogin('admin');
+if (user) {
+  renderSidebar('admin','admin-documents.html');
+  renderTopbar('Document Types');
+  renderCards();
+}
+
+function renderCards() {
+  document.getElementById('doc-cards').innerHTML = MOCK.doc_types.map(d=>`
+    <div class="doc-card">
+      <div class="doc-card-header">
+        <h3>${d.type_name}</h3>
+        <span class="pill ${d.is_available?'pill-available':'pill-inactive'}">${d.is_available?'Available':'Unavailable'}</span>
+      </div>
+      <p>${d.description}</p>
+      <div class="doc-card-meta">
+        <div class="doc-card-meta-row"><span class="dml">Fee:</span><span class="dmv">${fmtMoney(d.fee)}</span></div>
+        <div class="doc-card-meta-row"><span class="dml">Processing:</span><span class="dmv">${d.processing_days} day${d.processing_days>1?'s':''}</span></div>
+      </div>
+      <div class="doc-card-actions">
+        <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="openEdit(${d.doc_type_id})">✏️ Edit</button>
+        <button class="btn btn-secondary btn-sm" onclick="toggleAvail(${d.doc_type_id})">${d.is_available?'🚫':'✅'}</button>
+        <button class="btn btn-danger btn-sm" onclick="delDoc(${d.doc_type_id})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+function openEdit(id) {
+  const d = MOCK.doc_types.find(d=>d.doc_type_id===id);
+  if (!d) return;
+  document.getElementById('e-id').value   = id;
+  document.getElementById('e-name').value = d.type_name;
+  document.getElementById('e-desc').value = d.description;
+  document.getElementById('e-days').value = d.processing_days;
+  document.getElementById('e-fee').value  = d.fee;
+  document.getElementById('e-avail').checked = d.is_available===1;
+  openModal('edit-modal');
+}
+
+function saveEdit() {
+  const id = parseInt(document.getElementById('e-id').value);
+  const d  = MOCK.doc_types.find(d=>d.doc_type_id===id);
+  if (!d) return;
+  const name = document.getElementById('e-name').value.trim();
+  if (!name) { showFlash('Name is required.','error'); return; }
+  d.type_name       = name;
+  d.description     = document.getElementById('e-desc').value.trim();
+  d.processing_days = parseInt(document.getElementById('e-days').value)||3;
+  d.fee             = parseFloat(document.getElementById('e-fee').value)||0;
+  d.is_available    = document.getElementById('e-avail').checked ? 1 : 0;
+  closeModal('edit-modal');
+  renderCards();
+  showFlash('Document type updated.');
+}
+
+function toggleAvail(id) {
+  const d = MOCK.doc_types.find(d=>d.doc_type_id===id);
+  if (!d) return;
+  d.is_available = d.is_available ? 0 : 1;
+  renderCards();
+  showFlash(`"${d.type_name}" is now ${d.is_available?'available':'unavailable'}.`);
+}
+
+function delDoc(id) {
+  const inUse = MOCK.requests.some(r=>r.doc_type_id===id);
+  if (inUse) { showFlash('Cannot delete — existing requests use this document type.','error'); return; }
+  if (!confirm('Delete this document type?')) return;
+  const idx = MOCK.doc_types.findIndex(d=>d.doc_type_id===id);
+  if (idx>-1) { MOCK.doc_types.splice(idx,1); renderCards(); showFlash('Deleted.'); }
+}
+
+function addDocType() {
+  const name = document.getElementById('a-name').value.trim();
+  if (!name) { showFlash('Name is required.','error'); return; }
+  MOCK.doc_types.push({
+    doc_type_id: Date.now(),
+    type_name: name,
+    description: document.getElementById('a-desc').value.trim(),
+    processing_days: parseInt(document.getElementById('a-days').value)||3,
+    fee: parseFloat(document.getElementById('a-fee').value)||0,
+    is_available: document.getElementById('a-avail').checked ? 1 : 0
+  });
+  document.getElementById('a-name').value='';
+  document.getElementById('a-desc').value='';
+  document.getElementById('a-days').value='3';
+  document.getElementById('a-fee').value='0';
+  closeModal('add-modal');
+  renderCards();
+  showFlash('Document type added.');
+}
+</script>
+</body>
+</html>

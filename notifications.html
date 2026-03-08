@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notifications — UCC Portal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-col">
+    <header class="topbar" id="topbar"></header>
+    <div class="page-body">
+
+      <div class="page-header">
+        <div><h1>Notifications</h1><p>Your recent alerts and updates.</p></div>
+        <button class="btn btn-secondary" onclick="markAllRead()">Mark All as Read</button>
+      </div>
+
+      <div id="flash" class="flash hidden"></div>
+
+      <div class="card" id="notif-list"></div>
+
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+const user = SESSION.get();
+if (!user) { window.location.href='login.html'; }
+else {
+  renderSidebar(user.role, 'notifications.html');
+  renderTopbar('Notifications');
+  renderList();
+}
+
+function renderList() {
+  const notifs = DB.notifsByUser(user.user_id).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  const el = document.getElementById('notif-list');
+  if (!notifs.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🔔</div><p>No notifications yet.</p></div>`;
+    return;
+  }
+  el.innerHTML = notifs.map(n=>`
+    <div class="notif-item ${!n.is_read?'unread':''}" id="notif-${n.notif_id}">
+      <div class="notif-dot ${n.is_read?'read':''}"></div>
+      <div style="flex:1;">
+        <div class="notif-msg">${n.message}</div>
+        ${n.request_id ? `<div class="notif-ref"><a href="request-detail.html?id=${n.request_id}" class="text-blue">View Request →</a></div>` : ''}
+        <div class="notif-time">${fmtDateTime(n.created_at)}</div>
+      </div>
+      ${!n.is_read ? `<button class="btn btn-secondary btn-sm" onclick="markRead(${n.notif_id})">Mark Read</button>` : ''}
+    </div>`).join('');
+}
+
+function markRead(id) {
+  const n = MOCK.notifications.find(n=>n.notif_id===id);
+  if (n) { n.is_read=1; renderList(); renderSidebar(user.role,'notifications.html'); showFlash('Marked as read.'); }
+}
+
+function markAllRead() {
+  MOCK.notifications.filter(n=>n.user_id===user.user_id).forEach(n=>n.is_read=1);
+  renderList(); renderSidebar(user.role,'notifications.html'); showFlash('All notifications marked as read.');
+}
+</script>
+</body>
+</html>

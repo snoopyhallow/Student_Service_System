@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — UCC Portal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-col">
+    <header class="topbar" id="topbar"></header>
+    <div class="page-body">
+
+      <div class="page-header" id="pg-header">
+        <div>
+          <h1 id="welcome-title">Welcome back!</h1>
+          <p>Here's your document request overview.</p>
+        </div>
+        <a href="submit-request.html" class="btn btn-primary">📄 New Request</a>
+      </div>
+
+      <div id="flash" class="flash hidden"></div>
+
+      <!-- Summary Cards -->
+      <div class="summary-grid" id="summary-cards"></div>
+
+      <!-- Quick Actions -->
+      <div class="quick-grid section">
+        <a href="submit-request.html" class="quick-card">
+          <div class="qc-icon blue">📄</div>
+          <h3>Submit Request</h3>
+          <p>Request documents from the registrar or other offices.</p>
+        </a>
+        <a href="my-requests.html" class="quick-card">
+          <div class="qc-icon yellow">⏳</div>
+          <h3>Track Requests</h3>
+          <p>Monitor the status of your pending requests.</p>
+        </a>
+        <a href="request-history.html" class="quick-card">
+          <div class="qc-icon green">✅</div>
+          <h3>View History</h3>
+          <p>Access your completed and archived requests.</p>
+        </a>
+      </div>
+
+      <!-- Recent Requests -->
+      <div class="card section">
+        <div class="card-header">
+          <h2>Recent Requests</h2>
+          <a href="my-requests.html" class="btn btn-secondary btn-sm">View All</a>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Reference No.</th><th>Document Type</th><th>Date Submitted</th>
+              <th>Pickup Date</th><th>Status</th><th>Action</th>
+            </tr></thead>
+            <tbody id="recent-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Notices -->
+      <div class="card" style="border-left:4px solid var(--blue);">
+        <div class="card-body">
+          <h3 style="margin-bottom:12px;">📢 Important Notices</h3>
+          <ul style="list-style:none;display:grid;gap:8px;">
+            <li style="display:flex;gap:8px;font-size:13px;color:var(--text-sub);"><span style="color:var(--blue);flex-shrink:0;">•</span>Document processing may take 3–5 business days depending on the document type.</li>
+            <li style="display:flex;gap:8px;font-size:13px;color:var(--text-sub);"><span style="color:var(--blue);flex-shrink:0;">•</span>Please ensure all required information is accurate before submitting.</li>
+            <li style="display:flex;gap:8px;font-size:13px;color:var(--text-sub);"><span style="color:var(--blue);flex-shrink:0;">•</span>You will receive notifications when your request status changes.</li>
+            <li style="display:flex;gap:8px;font-size:13px;color:var(--text-sub);"><span style="color:var(--blue);flex-shrink:0;">•</span>Payment is collected upon document pickup at the Registrar's Office.</li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+const user = requireLogin('student');
+if (user) {
+  renderSidebar('student', 'student-dashboard.html');
+  renderTopbar('Student Dashboard');
+
+  document.getElementById('welcome-title').textContent = `Welcome back, ${user.full_name.split(' ')[0]}! 👋`;
+
+  const reqs  = DB.requestsByStudent(user.user_id);
+  const total = reqs.length;
+  const pend  = reqs.filter(r=>r.status==='pending').length;
+  const proc  = reqs.filter(r=>r.status==='processing').length;
+  const comp  = reqs.filter(r=>r.status==='completed').length;
+
+  document.getElementById('summary-cards').innerHTML = `
+    <div class="summary-card blue"><div class="sc-icon">📋</div><div class="sc-value">${total}</div><div class="sc-label">Total Requests</div></div>
+    <div class="summary-card yellow"><div class="sc-icon">⏳</div><div class="sc-value">${pend}</div><div class="sc-label">Pending</div></div>
+    <div class="summary-card blue"><div class="sc-icon">⚙️</div><div class="sc-value">${proc}</div><div class="sc-label">Processing</div></div>
+    <div class="summary-card green"><div class="sc-icon">✅</div><div class="sc-value">${comp}</div><div class="sc-label">Completed</div></div>`;
+
+  const recent = [...reqs].sort((a,b)=>new Date(b.date_submitted)-new Date(a.date_submitted)).slice(0,4);
+  const tbody = document.getElementById('recent-tbody');
+  if (!recent.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📭</div><p>No requests yet. <a href="submit-request.html" class="text-blue">Submit your first request.</a></p></div></td></tr>`;
+  } else {
+    tbody.innerHTML = recent.map(r => {
+      const dt = DB.docType(r.doc_type_id);
+      return `<tr>
+        <td class="td-ref">${r.reference_no}</td>
+        <td>${dt?.type_name || '—'}</td>
+        <td>${fmtDate(r.date_submitted)}</td>
+        <td>${fmtDate(r.preferred_pickup)}</td>
+        <td>${pillHtml(r.status)}</td>
+        <td><a href="request-detail.html?id=${r.request_id}" class="btn btn-secondary btn-sm">View</a></td>
+      </tr>`;
+    }).join('');
+  }
+}
+</script>
+</body>
+</html>

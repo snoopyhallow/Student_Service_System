@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pending Requests — UCC Portal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-col">
+    <header class="topbar" id="topbar"></header>
+    <div class="page-body">
+
+      <div class="page-header">
+        <div><h1>Pending Requests</h1><p>Review and process pending certificate requests.</p></div>
+      </div>
+
+      <div id="flash" class="flash hidden"></div>
+
+      <div class="card">
+        <div class="filter-bar">
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="search" class="form-control" placeholder="Search by ref, student, document...">
+          </div>
+          <select id="urgency-filter" class="form-control" style="width:150px;" onchange="renderTable()">
+            <option value="">All Urgency</option>
+            <option value="urgent">Urgent</option>
+            <option value="normal">Normal</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Reference No.</th><th>Student</th><th>Document</th>
+              <th>Qty</th><th>Urgency</th><th>Pickup Date</th>
+              <th>Date Submitted</th><th>Status</th><th class="text-right">Actions</th>
+            </tr></thead>
+            <tbody id="req-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Process Modal -->
+<div class="modal-backdrop" id="proc-modal">
+  <div class="modal">
+    <div class="modal-header"><h2>Process Request</h2><button class="modal-close" data-close="proc-modal">×</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>Reference No.</label><input type="text" id="m-ref" class="form-control" disabled></div>
+      <div class="form-group"><label>Student</label><input type="text" id="m-student" class="form-control" disabled></div>
+      <div class="form-group">
+        <label>Update Status To <span class="required">*</span></label>
+        <select id="m-status" class="form-control">
+          <option value="processing">Processing</option>
+          <option value="ready">Ready for Pickup</option>
+          <option value="completed">Completed (Picked Up)</option>
+          <option value="cancelled">Cancel Request</option>
+          <option value="rejected">Reject Request</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Note <span class="text-muted">(Optional)</span></label>
+        <textarea id="m-note" class="form-control" rows="3" placeholder="Add a note for the student..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" data-close="proc-modal">Cancel</button>
+      <button class="btn btn-success" onclick="applyProcess()">Update Status</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+const user = requireLogin('staff');
+let editId = null;
+
+if (user) {
+  renderSidebar('staff','pending-requests.html');
+  renderTopbar('Pending Requests');
+  document.getElementById('search').addEventListener('input', renderTable);
+  renderTable();
+}
+
+function renderTable() {
+  const q  = document.getElementById('search').value.toLowerCase();
+  const uf = document.getElementById('urgency-filter').value;
+  let reqs = MOCK.requests.filter(r=>['pending','processing'].includes(r.status));
+  if (uf) reqs=reqs.filter(r=>r.urgency===uf);
+  if (q)  reqs=reqs.filter(r=>{
+    const s=DB.user(r.student_id); const dt=DB.docType(r.doc_type_id);
+    return (r.reference_no+' '+(s?.full_name||'')+' '+(dt?.type_name||'')).toLowerCase().includes(q);
+  });
+  reqs.sort((a,b)=>{ if(a.urgency==='urgent'&&b.urgency!=='urgent')return -1; if(b.urgency==='urgent'&&a.urgency!=='urgent')return 1; return new Date(a.date_submitted)-new Date(b.date_submitted); });
+
+  const tbody=document.getElementById('req-tbody');
+  if (!reqs.length) {
+    tbody.innerHTML=`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">✅</div><p>No pending requests!</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML=reqs.map(r=>{
+    const s=DB.user(r.student_id); const dt=DB.docType(r.doc_type_id);
+    return `<tr>
+      <td class="td-ref">${r.reference_no}</td>
+      <td><div class="td-name-primary">${s?.full_name||'—'}</div><div class="td-name-secondary">${s?.student_id||''}</div></td>
+      <td><div>${dt?.type_name||'—'}</div><div class="td-name-secondary">Qty: ${r.quantity} · ${fmtMoney((dt?.fee||0)*r.quantity)}</div></td>
+      <td>${r.quantity}</td>
+      <td>${pillHtml(r.urgency)}</td>
+      <td>${fmtDate(r.preferred_pickup)}</td>
+      <td>${fmtDate(r.date_submitted)}</td>
+      <td>${pillHtml(r.status)}</td>
+      <td class="text-right" style="white-space:nowrap;">
+        <a href="request-detail.html?id=${r.request_id}" class="btn btn-secondary btn-sm">View</a>
+        <button class="btn btn-primary btn-sm" onclick="openProcess(${r.request_id})">Process</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openProcess(id) {
+  const r=DB.request(id); if(!r)return;
+  const s=DB.user(r.student_id);
+  editId=id;
+  document.getElementById('m-ref').value=''+r.reference_no;
+  document.getElementById('m-student').value=s?.full_name||'—';
+  document.getElementById('m-status').value='processing';
+  document.getElementById('m-note').value='';
+  openModal('proc-modal');
+}
+
+function applyProcess() {
+  const r=DB.request(editId); if(!r)return;
+  const ns=document.getElementById('m-status').value;
+  const note=document.getElementById('m-note').value.trim();
+  const old=r.status;
+  r.status=ns; r.processed_by=user.user_id;
+  if(ns==='completed') r.date_completed=new Date().toISOString();
+
+  MOCK.status_logs.push({log_id:Date.now(),request_id:r.request_id,changed_by:user.user_id,old_status:old,new_status:ns,note:note||`Status changed to ${ns}.`,changed_at:new Date().toISOString()});
+
+  const dt=DB.docType(r.doc_type_id);
+  const msgs={processing:'is now being processed',ready:'is ready for pickup!',completed:"has been completed. Please pick it up.",cancelled:'has been cancelled.',rejected:'has been rejected.'};
+  MOCK.notifications.push({notif_id:Date.now(),user_id:r.student_id,request_id:r.request_id,message:`Your request ${r.reference_no} (${dt?.type_name||''}) ${msgs[ns]||'was updated.'}`,is_read:0,created_at:new Date().toISOString()});
+
+  closeModal('proc-modal');
+  renderTable();
+  showFlash(`Request updated to "${capitalize(ns)}".`);
+}
+</script>
+</body>
+</html>

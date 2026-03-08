@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staff Dashboard — UCC Portal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-col">
+    <header class="topbar" id="topbar"></header>
+    <div class="page-body">
+
+      <div class="page-header">
+        <div>
+          <h1 id="welcome-h1">Welcome!</h1>
+          <p>Here's your work summary for today.</p>
+        </div>
+        <a href="pending-requests.html" class="btn btn-primary">⏳ View Pending</a>
+      </div>
+
+      <div class="summary-grid" id="summary"></div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Recent Active Requests</h2>
+          <a href="pending-requests.html" class="btn btn-secondary btn-sm">View All Pending</a>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Reference No.</th><th>Student</th><th>Document</th>
+              <th>Urgency</th><th>Date Submitted</th><th>Status</th><th class="text-right">Actions</th>
+            </tr></thead>
+            <tbody id="req-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+const user = requireLogin('staff');
+if (user) {
+  renderSidebar('staff','staff-dashboard.html');
+  renderTopbar('Staff Dashboard');
+  document.getElementById('welcome-h1').textContent = `Welcome, ${user.full_name.split(' ')[0]}! 👋`;
+
+  const active  = MOCK.requests.filter(r=>['pending','processing'].includes(r.status));
+  const pend    = active.filter(r=>r.status==='pending').length;
+  const proc    = active.filter(r=>r.status==='processing').length;
+  const todayC  = MOCK.requests.filter(r=>r.status==='completed'&&r.date_completed&&new Date(r.date_completed).toDateString()===new Date().toDateString()).length;
+
+  document.getElementById('summary').innerHTML = `
+    <div class="summary-card blue"><div class="sc-icon">📋</div><div class="sc-value">${active.length}</div><div class="sc-label">Active Requests</div></div>
+    <div class="summary-card yellow"><div class="sc-icon">⏳</div><div class="sc-value">${pend}</div><div class="sc-label">Pending</div></div>
+    <div class="summary-card blue"><div class="sc-icon">⚙️</div><div class="sc-value">${proc}</div><div class="sc-label">Processing</div></div>
+    <div class="summary-card green"><div class="sc-icon">✅</div><div class="sc-value">${todayC}</div><div class="sc-label">Completed Today</div></div>`;
+
+  const recent = [...active].sort((a,b)=>new Date(b.date_submitted)-new Date(a.date_submitted)).slice(0,5);
+  const tbody = document.getElementById('req-tbody');
+  if (!recent.length) {
+    tbody.innerHTML=`<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">✅</div><p>All caught up! No active requests.</p></div></td></tr>`;
+  } else {
+    tbody.innerHTML=recent.map(r=>{
+      const s=DB.user(r.student_id); const dt=DB.docType(r.doc_type_id);
+      return `<tr>
+        <td class="td-ref">${r.reference_no}</td>
+        <td><div class="td-name-primary">${s?.full_name||'—'}</div><div class="td-name-secondary">${s?.student_id||''}</div></td>
+        <td>${dt?.type_name||'—'}</td>
+        <td>${pillHtml(r.urgency)}</td>
+        <td>${fmtDate(r.date_submitted)}</td>
+        <td>${pillHtml(r.status)}</td>
+        <td class="text-right" style="white-space:nowrap;">
+          <a href="request-detail.html?id=${r.request_id}" class="btn btn-secondary btn-sm">View</a>
+          <a href="pending-requests.html" class="btn btn-primary btn-sm">Process</a>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+}
+</script>
+</body>
+</html>

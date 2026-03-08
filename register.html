@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register — UCC Portal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-box auth-box-wide">
+
+    <div class="auth-logo">
+      <div class="auth-logo-icon">🎓</div>
+      <h1>Create Account</h1>
+      <p>Register to access UCC Document Request Portal</p>
+    </div>
+
+    <div class="auth-card">
+      <div id="flash-msg" class="flash flash-error hidden"></div>
+      <div id="flash-ok"  class="flash flash-success hidden"></div>
+
+      <div class="form-row" style="margin-bottom:0;">
+
+        <div class="auth-group full-width">
+          <label class="auth-label">Full Name *</label>
+          <input type="text" id="full_name" class="auth-input" placeholder="Juan dela Cruz">
+        </div>
+
+        <div class="auth-group">
+          <label class="auth-label">Student ID *</label>
+          <input type="text" id="student_id" class="auth-input" placeholder="2024-00123">
+        </div>
+
+        <div class="auth-group">
+          <label class="auth-label">Email Address *</label>
+          <input type="email" id="email" class="auth-input" placeholder="your.email@ucc.edu.ph">
+        </div>
+
+        <div class="auth-group">
+          <label class="auth-label">Course *</label>
+          <select id="course" class="auth-input">
+            <option value="">Select course</option>
+            <option>BSIT</option><option>BSCS</option><option>BSBA</option>
+            <option>BSED</option><option>BSEE</option><option>BSN</option>
+            <option>AB English</option><option>AB Communication</option><option>Others</option>
+          </select>
+        </div>
+
+        <div class="auth-group">
+          <label class="auth-label">Year Level *</label>
+          <select id="year_level" class="auth-input">
+            <option value="1">Year 1</option><option value="2">Year 2</option>
+            <option value="3">Year 3</option><option value="4">Year 4</option><option value="5">Year 5</option>
+          </select>
+        </div>
+
+        <div class="auth-group">
+          <label class="auth-label">Contact Number</label>
+          <input type="text" id="contact_no" class="auth-input" placeholder="09XXXXXXXXX">
+        </div>
+
+        <div class="auth-group">
+          <label class="auth-label">Password *</label>
+          <div class="pw-wrap">
+            <input type="password" id="pw1" class="auth-input" placeholder="Min. 6 characters">
+            <button class="pw-toggle" onclick="togglePw('pw1',this)">👁</button>
+          </div>
+        </div>
+
+        <div class="auth-group">
+          <label class="auth-label">Confirm Password *</label>
+          <div class="pw-wrap">
+            <input type="password" id="pw2" class="auth-input" placeholder="Repeat password">
+            <button class="pw-toggle" onclick="togglePw('pw2',this)">👁</button>
+          </div>
+        </div>
+      </div>
+
+      <button class="auth-btn" style="margin-top:8px;" onclick="doRegister()">Create Account</button>
+
+      <div class="auth-footer">
+        Already have an account? <a href="login.html">Sign in</a>
+      </div>
+    </div>
+
+    <div class="auth-copy">© 2026 University of City College. All rights reserved.</div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+function doRegister() {
+  const err = document.getElementById('flash-msg');
+  const ok  = document.getElementById('flash-ok');
+  const full_name  = document.getElementById('full_name').value.trim();
+  const student_id = document.getElementById('student_id').value.trim();
+  const email      = document.getElementById('email').value.trim();
+  const course     = document.getElementById('course').value;
+  const year_level = parseInt(document.getElementById('year_level').value);
+  const contact_no = document.getElementById('contact_no').value.trim();
+  const pw1 = document.getElementById('pw1').value;
+  const pw2 = document.getElementById('pw2').value;
+
+  err.classList.add('hidden'); ok.classList.add('hidden');
+
+  if (!full_name || !student_id || !email || !course || !pw1) {
+    err.textContent = 'Please fill all required fields.'; err.classList.remove('hidden'); return;
+  }
+  if (pw1 !== pw2) { err.textContent = 'Passwords do not match.'; err.classList.remove('hidden'); return; }
+  if (pw1.length < 6) { err.textContent = 'Password must be at least 6 characters.'; err.classList.remove('hidden'); return; }
+  if (MOCK.users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
+    err.textContent = 'Email already registered.'; err.classList.remove('hidden'); return;
+  }
+  if (MOCK.users.find(u => u.student_id === student_id)) {
+    err.textContent = 'Student ID already registered.'; err.classList.remove('hidden'); return;
+  }
+
+  const newUser = {
+    user_id: Date.now(), student_id, full_name, email, password: pw1,
+    role:'student', course, year_level, contact_no, is_active:1, created_at: new Date().toISOString()
+  };
+  MOCK.users.push(newUser);
+  ok.textContent = 'Account created! Redirecting to login...'; ok.classList.remove('hidden');
+  setTimeout(() => window.location.href = 'login.html', 2000);
+}
+</script>
+</body>
+</html>

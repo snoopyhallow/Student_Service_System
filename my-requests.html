@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Requests — UCC Portal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-col">
+    <header class="topbar" id="topbar"></header>
+    <div class="page-body">
+
+      <div class="page-header">
+        <div><h1>My Requests</h1><p>Track the status of your active requests.</p></div>
+        <a href="submit-request.html" class="btn btn-primary">📄 New Request</a>
+      </div>
+
+      <div id="flash" class="flash hidden"></div>
+
+      <div class="card">
+        <div class="filter-bar">
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="search-inp" class="form-control" placeholder="Search requests...">
+          </div>
+          <select id="status-filter" class="form-control" style="width:160px;" onchange="renderTable()">
+            <option value="">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="processing">Processing</option>
+            <option value="ready">Ready for Pickup</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Reference No.</th><th>Document Type</th><th>Qty</th>
+              <th>Date Submitted</th><th>Pickup Date</th><th>Status</th><th>Action</th>
+            </tr></thead>
+            <tbody id="req-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+const ACTIVE = ['pending','processing','ready'];
+const user = requireLogin('student');
+if (user) {
+  renderSidebar('student','my-requests.html');
+  renderTopbar('My Active Requests');
+  document.getElementById('search-inp').addEventListener('input', renderTable);
+  renderTable();
+}
+
+function renderTable() {
+  if (!user) return;
+  const q = document.getElementById('search-inp').value.toLowerCase();
+  const sf = document.getElementById('status-filter').value;
+  const reqs = DB.requestsByStudent(user.user_id)
+    .filter(r => ACTIVE.includes(r.status))
+    .filter(r => !sf || r.status === sf)
+    .sort((a,b)=>new Date(b.date_submitted)-new Date(a.date_submitted));
+
+  const filtered = q ? reqs.filter(r=>{
+    const dt = DB.docType(r.doc_type_id);
+    return (r.reference_no+' '+(dt?.type_name||'')+' '+r.purpose).toLowerCase().includes(q);
+  }) : reqs;
+
+  const tbody = document.getElementById('req-tbody');
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📭</div><p>No active requests. <a href="submit-request.html" class="text-blue">Submit a new one.</a></p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered.map(r=>{
+    const dt = DB.docType(r.doc_type_id);
+    return `<tr>
+      <td class="td-ref">${r.reference_no}</td>
+      <td>${dt?.type_name||'—'}</td>
+      <td>${r.quantity}</td>
+      <td>${fmtDate(r.date_submitted)}</td>
+      <td>${fmtDate(r.preferred_pickup)}</td>
+      <td>${pillHtml(r.status)}</td>
+      <td><a href="request-detail.html?id=${r.request_id}" class="btn btn-secondary btn-sm">View</a></td>
+    </tr>`;
+  }).join('');
+}
+</script>
+</body>
+</html>

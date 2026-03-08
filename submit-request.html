@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Submit Request — UCC Portal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-col">
+    <header class="topbar" id="topbar"></header>
+    <div class="page-body">
+
+      <div class="page-header">
+        <div><h1>Submit Service Request</h1><p>Fill out the form below to request a document.</p></div>
+      </div>
+
+      <div id="flash" class="flash hidden"></div>
+
+      <div class="alert alert-info section">
+        <strong>Before submitting your request:</strong>
+        <ul>
+          <li>Ensure all information is accurate and complete.</li>
+          <li>Check the processing time and fees for your selected document.</li>
+          <li>Payment is made upon document pickup at the Registrar's Office.</li>
+        </ul>
+      </div>
+
+      <div class="card" style="max-width:720px;">
+        <div class="card-header"><h2>Request Details</h2></div>
+        <div class="card-body">
+
+          <!-- Document Type -->
+          <div class="form-group">
+            <label>Document Type <span class="required">*</span></label>
+            <select id="doc_type" class="form-control" onchange="onDocChange()">
+              <option value="">— Select a document type —</option>
+            </select>
+            <div id="doc-hint" class="form-hint"></div>
+          </div>
+
+          <!-- Quantity -->
+          <div class="form-group">
+            <label>Quantity <span class="required">*</span></label>
+            <input type="number" id="quantity" class="form-control" value="1" min="1" max="10"
+                   style="max-width:130px;" oninput="updateTotal()">
+            <div id="total-hint" class="form-hint"></div>
+          </div>
+
+          <!-- Purpose -->
+          <div class="form-group">
+            <label>Purpose <span class="required">*</span></label>
+            <input type="text" id="purpose" class="form-control" placeholder="e.g., Job application, Scholarship, Transfer">
+          </div>
+
+          <!-- Urgency -->
+          <div class="form-group">
+            <label>Urgency Level <span class="required">*</span></label>
+            <div style="display:flex;gap:24px;margin-top:6px;">
+              <label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:13px;cursor:pointer;">
+                <input type="radio" name="urgency" value="normal" checked> Normal
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:13px;cursor:pointer;">
+                <input type="radio" name="urgency" value="urgent"> Urgent
+                <span style="font-size:11px;color:var(--text-muted);">(additional fee may apply)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Preferred Pickup Date -->
+          <div class="form-group">
+            <label>Preferred Pickup Date <span class="required">*</span></label>
+            <input type="date" id="pickup_date" class="form-control" style="max-width:220px;">
+            <div class="form-hint">Select a date after the processing period ends.</div>
+          </div>
+
+          <!-- Remarks -->
+          <div class="form-group">
+            <label>Additional Remarks <span style="color:var(--text-muted);font-weight:400;">(Optional)</span></label>
+            <textarea id="remarks" class="form-control" rows="4"
+                      placeholder="Any special instructions or additional information..."
+                      style="resize:vertical;"></textarea>
+          </div>
+
+          <!-- Buttons -->
+          <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:8px;">
+            <a href="student-dashboard.html" class="btn btn-secondary">Cancel</a>
+            <button class="btn btn-primary" onclick="submitRequest()">📄 Submit Request</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+const user = requireLogin('student');
+if (user) {
+  renderSidebar('student','submit-request.html');
+  renderTopbar('Submit Service Request');
+
+  // Populate doc types
+  const sel = document.getElementById('doc_type');
+  MOCK.doc_types.filter(d=>d.is_available).forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.doc_type_id;
+    opt.textContent = `${d.type_name} — ₱${d.fee.toFixed(2)} (${d.processing_days} day${d.processing_days>1?'s':''})`;
+    opt.dataset.fee  = d.fee;
+    opt.dataset.desc = d.description;
+    sel.appendChild(opt);
+  });
+
+  // Set min pickup date
+  const tmr = new Date(); tmr.setDate(tmr.getDate()+1);
+  document.getElementById('pickup_date').min = tmr.toISOString().split('T')[0];
+}
+
+function onDocChange() {
+  const opt = document.getElementById('doc_type').selectedOptions[0];
+  const hint = document.getElementById('doc-hint');
+  if (opt && opt.dataset.desc) {
+    hint.textContent = opt.dataset.desc;
+    updateTotal();
+  } else {
+    hint.textContent = '';
+    document.getElementById('total-hint').textContent = '';
+  }
+}
+
+function updateTotal() {
+  const opt = document.getElementById('doc_type').selectedOptions[0];
+  const qty = parseInt(document.getElementById('quantity').value) || 1;
+  const tot = document.getElementById('total-hint');
+  if (opt && opt.dataset.fee) {
+    tot.textContent = `Total Fee: ₱${(parseFloat(opt.dataset.fee) * qty).toFixed(2)}`;
+  } else tot.textContent = '';
+}
+
+function submitRequest() {
+  const doc_type_id = parseInt(document.getElementById('doc_type').value);
+  const quantity    = parseInt(document.getElementById('quantity').value);
+  const purpose     = document.getElementById('purpose').value.trim();
+  const urgency     = document.querySelector('input[name="urgency"]:checked').value;
+  const pickup      = document.getElementById('pickup_date').value;
+  const remarks     = document.getElementById('remarks').value.trim();
+
+  if (!doc_type_id) { showFlash('Please select a document type.','error'); return; }
+  if (!purpose)     { showFlash('Please enter the purpose.','error'); return; }
+  if (!pickup)      { showFlash('Please select a preferred pickup date.','error'); return; }
+
+  const year = new Date().getFullYear();
+  const nextId = Math.max(...MOCK.requests.map(r=>r.request_id)) + 1;
+  const refNo = `REQ-${year}-${String(nextId).padStart(4,'0')}`;
+
+  const newReq = {
+    request_id: nextId, reference_no: refNo,
+    student_id: user.user_id, doc_type_id, quantity, purpose, urgency,
+    preferred_pickup: pickup, status:'pending', remarks,
+    processed_by: null,
+    date_submitted: new Date().toISOString(), date_completed: null
+  };
+  MOCK.requests.push(newReq);
+
+  showFlash(`✅ Request submitted! Reference: ${refNo}`, 'success');
+  setTimeout(() => window.location.href = 'my-requests.html', 2000);
+}
+</script>
+</body>
+</html>

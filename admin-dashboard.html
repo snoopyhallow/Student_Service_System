@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard — UCC Portal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main-col">
+    <header class="topbar" id="topbar"></header>
+    <div class="page-body">
+
+      <div class="page-header">
+        <div><h1>System Overview</h1><p>Monitor all requests and system activity.</p></div>
+      </div>
+
+      <!-- Summary Row 1 -->
+      <div class="summary-grid" id="sum1"></div>
+      <!-- Summary Row 2 -->
+      <div class="summary-grid" id="sum2"></div>
+
+      <!-- Charts -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px;">
+        <div class="card">
+          <div class="card-body">
+            <h2 style="margin-bottom:20px;">Monthly Request Volume</h2>
+            <div class="chart-bars" id="bar-chart"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body">
+            <h2 style="margin-bottom:20px;">Requests by Status</h2>
+            <div id="status-chart"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="card">
+        <div class="card-header">
+          <h2>Recent Activity</h2>
+          <a href="admin-requests.html" class="btn btn-secondary btn-sm">View All Requests</a>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Reference No.</th><th>Student</th><th>Document</th>
+              <th>Status Change</th><th>Changed By</th><th>Time</th>
+            </tr></thead>
+            <tbody id="activity-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+const user = requireLogin('admin');
+if (user) {
+  renderSidebar('admin','admin-dashboard.html');
+  renderTopbar('System Overview');
+
+  const reqs    = MOCK.requests;
+  const total   = reqs.length;
+  const pend    = reqs.filter(r=>r.status==='pending').length;
+  const proc    = reqs.filter(r=>r.status==='processing').length;
+  const comp    = reqs.filter(r=>r.status==='completed').length;
+  const canc    = reqs.filter(r=>r.status==='cancelled').length;
+  const rej     = reqs.filter(r=>r.status==='rejected').length;
+  const students= MOCK.users.filter(u=>u.role==='student').length;
+  const staff   = MOCK.users.filter(u=>u.role==='staff').length;
+  const doctypes= MOCK.doc_types.filter(d=>d.is_available).length;
+
+  document.getElementById('sum1').innerHTML = `
+    <div class="summary-card blue"><div class="sc-icon">📋</div><div class="sc-value">${total}</div><div class="sc-label">Total Requests</div></div>
+    <div class="summary-card yellow"><div class="sc-icon">⏳</div><div class="sc-value">${pend}</div><div class="sc-label">Pending</div></div>
+    <div class="summary-card blue"><div class="sc-icon">⚙️</div><div class="sc-value">${proc}</div><div class="sc-label">Processing</div></div>
+    <div class="summary-card green"><div class="sc-icon">✅</div><div class="sc-value">${comp}</div><div class="sc-label">Completed</div></div>`;
+
+  document.getElementById('sum2').innerHTML = `
+    <div class="summary-card teal"><div class="sc-icon">🎓</div><div class="sc-value">${students}</div><div class="sc-label">Total Students</div></div>
+    <div class="summary-card green"><div class="sc-icon">👩‍💼</div><div class="sc-value">${staff}</div><div class="sc-label">Total Staff</div></div>
+    <div class="summary-card yellow"><div class="sc-icon">📄</div><div class="sc-value">${doctypes}</div><div class="sc-label">Document Types</div></div>
+    <div class="summary-card red"><div class="sc-icon">🚫</div><div class="sc-value">${canc+rej}</div><div class="sc-label">Cancelled/Rejected</div></div>`;
+
+  // Bar chart — last 6 months
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const now = new Date();
+  const chartData = [];
+  for (let i=5; i>=0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const cnt = reqs.filter(r=>{
+      const rd=new Date(r.date_submitted);
+      return rd.getMonth()===d.getMonth() && rd.getFullYear()===d.getFullYear();
+    }).length;
+    chartData.push({ lbl:months[d.getMonth()], cnt });
+  }
+  const maxBar = Math.max(...chartData.map(c=>c.cnt)) || 1;
+  document.getElementById('bar-chart').innerHTML = chartData.map(c=>`
+    <div class="chart-col">
+      <div class="chart-bar" style="height:${Math.max(4,Math.round((c.cnt/maxBar)*100))}%" title="${c.cnt} requests"></div>
+      <div class="chart-lbl">${c.lbl}</div>
+    </div>`).join('');
+
+  // Status chart
+  const statuses = [
+    {l:'Pending',cnt:pend,color:'#D97706'},
+    {l:'Processing',cnt:proc,color:'#2563EB'},
+    {l:'Completed',cnt:comp,color:'#16A34A'},
+    {l:'Cancelled',cnt:canc,color:'#6B7280'},
+    {l:'Rejected',cnt:rej,color:'#DC2626'},
+  ];
+  const maxProg = Math.max(...statuses.map(s=>s.cnt)) || 1;
+  document.getElementById('status-chart').innerHTML = statuses.map(s=>`
+    <div class="prog-row">
+      <div class="prog-head"><span>${s.l}</span><span class="text-muted">${s.cnt}</span></div>
+      <div class="prog-track"><div class="prog-fill" style="width:${Math.round((s.cnt/maxProg)*100)}%;background:${s.color};"></div></div>
+    </div>`).join('');
+
+  // Recent activity
+  const logs = [...MOCK.status_logs].sort((a,b)=>new Date(b.changed_at)-new Date(a.changed_at)).slice(0,8);
+  document.getElementById('activity-tbody').innerHTML = logs.map(log=>{
+    const req = DB.request(log.request_id);
+    const student = req ? DB.user(req.student_id) : null;
+    const dt = req ? DB.docType(req.doc_type_id) : null;
+    const changer = DB.user(log.changed_by);
+    return `<tr>
+      <td class="td-ref">${req?.reference_no||'—'}</td>
+      <td>${student?.full_name||'—'}</td>
+      <td>${dt?.type_name||'—'}</td>
+      <td>${log.old_status?pillHtml(log.old_status)+' → ':''}${pillHtml(log.new_status)}</td>
+      <td>${changer?.full_name||'System'}</td>
+      <td class="text-muted text-xs">${timeAgo(log.changed_at)}</td>
+    </tr>`;
+  }).join('');
+}
+</script>
+</body>
+</html>
